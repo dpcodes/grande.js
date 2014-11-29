@@ -486,7 +486,10 @@
     function insertVideoOnSelection(sel, textProp) {
       var path = sel.anchorNode[textProp];
       sel.anchorNode[textProp] = '';
-      var html = "<figure><iframe width='560' height='315' src='http://www.youtube.com/embed/" + path + "'></iframe></figure>";
+      var re = /[?&]?([^=]+)=([^&]*)/g;
+      var matches = re.exec(path);
+      var youtubeId = matches[2];
+      var html = "<figure><iframe width='560' height='315' src='http://www.youtube.com/embed/" + youtubeId + "'></iframe></figure>";
       document.execCommand("insertHTML", false, html);
       return getParentWithTag(sel.anchorNode, 'figure');
     }
