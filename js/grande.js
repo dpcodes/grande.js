@@ -236,8 +236,12 @@
     }
 
     function hideSideMenu(e) {
-      imageTooltip.style.top = EDGE + 'px';
-      imageTooltip.style.left = EDGE + 'px';
+      // Need to add a timeout to allow a click event to happen on the image
+      // tooltip before it gets hidden.
+      setTimeout(function() {
+        imageTooltip.style.top = EDGE + 'px';
+        imageTooltip.style.left = EDGE + 'px';
+      }, 100);
     }
 
     function toggleSideMenu(e) {
