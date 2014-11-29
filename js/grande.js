@@ -135,9 +135,13 @@
 
       imageInput = document.querySelectorAll(".file-label + input")[0];
       imageTooltip = document.querySelectorAll(".image-tooltip")[0];
+      imageTooltip.style.top = EDGE + 'px';
+      imageTooltip.style.left = EDGE + 'px';
       textMenu = document.querySelectorAll(".text-menu")[0];
       optionsNode = document.querySelectorAll(".text-menu .options")[0];
       urlInput = document.querySelectorAll(".text-menu .url-input")[0];
+
+      editNode.onblur = hideSideMenu;
     }
 
     function bindTextSelectionEvents() {
@@ -226,8 +230,14 @@
     function scrollListener(e) {
       if (Math.abs(options.containerEl.scrollTop - scrollTopBegin) > 40) {
         imageTooltip.style.top = EDGE + 'px';
+        imageTooltip.style.left = EDGE + 'px';
         options.containerEl.removeEventListener('scroll', scrollListener);
       }
+    }
+
+    function hideSideMenu(e) {
+      imageTooltip.style.top = EDGE + 'px';
+      imageTooltip.style.left = EDGE + 'px';
     }
 
     function toggleSideMenu(e) {
@@ -369,9 +379,9 @@
         return;
       }
 
-      // If the selection isn't wrapped by any element.
-      // Put it inside a paragraph.
-      if (sel.anchorNode.tagName === undefined) {
+      // If the selection isn't wrapped by any element. Put it inside a paragraph.
+      if (sel.anchorNode.tagName === undefined &&
+          sel.anchorNode.parentNode == editNode) {
         toggleFormatBlock("p");
       }
 
@@ -763,6 +773,7 @@
         setTextMenuPosition(EDGE, EDGE);
         textMenu.className = "text-menu hide";
       }
+      hideSideMenu(e);
     }
 
     init(bindableNodes, userOpts);
