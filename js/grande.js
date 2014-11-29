@@ -12,12 +12,15 @@
         editNode = bindableNodes[0], // TODO: cross el support for imageUpload
         isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1,
         options = {
+          containerEl: document,
           animate: true,
           placeholder: null,
           mode: "rich", // inline, rich, partial
           rtl: false,
           imagesFromUrls: false, // Convert images urls to <img>s. Must be "rich" mode.
           allowImages: false,
+          imageTooltipLabel: 'Insert Image',
+          urlInputPlaceholder: 'Paste or type a link',
           // This will be called when a user select an image to insert into the article.
           // It should accept two params (filesList, insertImageCallback(imgurl)).
           // filesList is going to be the list of files the user selected,
@@ -32,6 +35,8 @@
         imageTooltip,
         imageInput,
         imageBound,
+        currentElement,
+        scrollTopBegin,
 
         init = function(nodes, opts) {
           options = extend(options, opts);
@@ -70,7 +75,7 @@
 
         for (i = 0, len = editableNodes.length; i < len; i++) {
           node = editableNodes[i];
-          if (node[getTextProp(node)]) {
+          if (node[getTextProp(node)].trim()) {
             continue;
           }
 
@@ -82,8 +87,11 @@
     }
 
     function addPlaceholder(el, text) {
+      // Remove any <br> elements.
+      var brs = el.getElementsByTagName('br');
+      for (var i = 0; i < brs.length; i++) { brs[i].parentNode.removeChild(brs[i]); }
       p = document.createElement("span");
-      p.innerText = text;
+      p[getTextProp(p)] = text;
       p.className = "g-placeholder";
       el.appendChild(p);
     }
@@ -100,7 +108,7 @@
                 <button class='quote'>&rdquo;</button> \
                 <button class='url useicons'>&#xe001;</button> \
                 <button class='code'>&lt;&gt;</button> \
-                <input class='url-input' type='text' placeholder='Paste or type a link'/> \
+                <input class='url-input' type='text' placeholder='"+options.urlInputPlaceholder+"'/> \
               </span> \
             </span> \
           </div>",
@@ -110,9 +118,12 @@
       toolbarContainer.className = "g-body";
       document.body.appendChild(toolbarContainer);
 
-      imageTooltipTemplate.innerHTML = "<div class='pos-abs file-label'>Insert image</div> \
-                                          <input class='file-hidden pos-abs' type='file' id='files' name='files[]' accept='image/*' multiple/>";
-      imageTooltipTemplate.className = "image-tooltip hide";
+      imageTooltipTemplate.innerHTML = "\
+        <div class='pos-abs file-label'><div class='file-label-container'>" +
+          options.imageTooltipLabel +
+        "</div></div> \
+        <input class='file-hidden pos-abs' type='file' id='files' name='files[]' accept='image/*' multiple/>";
+      imageTooltipTemplate.className = "image-tooltip";
 
       div.className = "text-menu hide";
       div.innerHTML = toolbarTemplate;
@@ -148,7 +159,6 @@
         if (options.allowImages && options.uploadCallback) {
           imageTooltip.onmousedown = triggerImageUpload;
           imageInput.onchange = uploadImage;
-          node.onmousemove = triggerOverlayStyling;
         }
 
         // Trigger on both mousedown and mouseup so that the click on the menu
@@ -175,16 +185,12 @@
       }
     }
 
-    function triggerOverlayStyling(event) {
-      toggleImageTooltip(event, event.target);
-    }
-
     function triggerImageUpload(event) {
       // Cache the bound that was originally clicked on before the image upload
       var childrenNodes = editNode.children,
           editBounds = editNode.getBoundingClientRect();
 
-      imageBound = getHorizontalBounds(childrenNodes, editBounds);
+      currentElement = getCurrentElementAtCursor();
     }
 
     function uploadImage(event) {
@@ -196,7 +202,11 @@
         var progressIndicatorEl = document.createElement("span");
         progressEl.appendChild(progressIndicatorEl);
         figureEl.appendChild(progressEl);
-        editNode.insertBefore(figureEl, imageBound.bottomElement);
+        if (currentElement != editNode) {
+          editNode.insertBefore(figureEl, currentElement);
+        } else {
+          editNode.appendChild(figureEl);
+        }
 
         options.uploadCallback(this.files,
           // Upload complete callback.
@@ -213,64 +223,84 @@
       }
     }
 
-    function toggleImageTooltip(event, element) {
-      var childrenNodes = element.children,
-          editBounds = element.getBoundingClientRect(),
-          bound = getHorizontalBounds(childrenNodes, editBounds);
-
-      if (bound) {
-        if (!options.rtl) {
-          imageTooltip.style.left = (editBounds.left - 90 ) + "px";
-        } else {
-          imageTooltip.style.left = (editBounds.right + 90 ) + "px";
-        }
-        imageTooltip.style.top = (bound.top - 17) + "px";
-      } else {
-        imageTooltip.style.left = EDGE + "px";
-        imageTooltip.style.top = EDGE + "px";
+    function scrollListener(e) {
+      if (Math.abs(options.containerEl.scrollTop - scrollTopBegin) > 40) {
+        imageTooltip.style.top = EDGE + 'px';
+        options.containerEl.removeEventListener('scroll', scrollListener);
       }
     }
 
-    function getHorizontalBounds(nodes, target) {
-      var bounds = [],
-          bound,
-          i,
-          len,
-          preNode,
-          postNode,
-          bottomBound,
-          topBound,
-          coordY;
+    function toggleSideMenu(e) {
+      scrollTopBegin = options.containerEl.scrollTop;
+      options.containerEl.addEventListener('scroll', scrollListener);
+      var selectedText = root.getSelection(),
+          range,
+          clientRectBounds,
+          target = e.target || e.srcElement;
 
-      // Compute top and bottom bounds for each child element
-      for (i = 0, len = nodes.length - 1; i < len; i++) {
-        preNode = nodes[i];
-        postNode = nodes[i+1] || null;
-
-        bottomBound = preNode.getBoundingClientRect().bottom - 5;
-        topBound = postNode.getBoundingClientRect().top;
-
-        bounds.push({
-          top: topBound,
-          bottom: bottomBound,
-          topElement: preNode,
-          bottomElement: postNode,
-          index: i+1
-        });
+      // The selected text is not editable
+      if (options.mode !== "rich") {
+        return;
       }
 
-      coordY = event.pageY - root.scrollY;
+      // The selected text is collapsed, push the menu out of the way
+      range = selectedText.getRangeAt(0);
+      clientRectBounds = range.getBoundingClientRect();
+      if (clientRectBounds.height === 0) {
+        if (range.startContainer.tagName == undefined) {
+          clientRectBounds = range.startContainer.parentNode.getBoundingClientRect();
+        } else {
+          clientRectBounds = range.startContainer.getBoundingClientRect();
+        }
+      }
+      var editBounds = editNode.getBoundingClientRect();
+      var targetBounds = target.getBoundingClientRect();
+      var editorTop = editBounds.top + root.pageYOffset;
+      var targetTop = targetBounds.top + root.pageYOffset;
+      var currentEditTop = clientRectBounds.top + root.pageYOffset;
 
-      // Find if there is a range to insert the image tooltip between two elements
-      for (i = 0, len = bounds.length; i < len; i++) {
-        bound = bounds[i];
-        if (coordY < bound.top && coordY > bound.bottom) {
-          return bound;
+      imageTooltip.style.top = (Math.max(editorTop, currentEditTop, targetTop) - 20) + "px";
+      var width = imageTooltip.getElementsByClassName('file-label-container')[0].offsetWidth;
+      if (!options.rtl) {
+        imageTooltip.style.left = (editBounds.left - width - 10 ) + "px";
+      } else {
+        imageTooltip.style.left = (editBounds.right + width + 10 ) + "px";
+      }
+    }
+
+    function isEditorChild(childNode) {
+      for (var i = 0; i < editNode.childNodes.length; i++) {
+        if (childNode == editNode.childNodes[i]) {
+          return true;
         }
       }
 
-      // When no bounds is found return the first bound.
-      return bounds[0];
+      return false;
+    }
+
+    function getCurrentElementAtCursor() {
+      var selectedText = root.getSelection(),
+          range,
+          clientRectBounds,
+          clientElement;
+
+      // The selected text is collapsed, push the menu out of the way
+      range = selectedText.getRangeAt(0);
+      clientRectBounds = range.getBoundingClientRect();
+      clientElement = range.startContainer;
+      if (clientElement.tagName == undefined) {
+        clientElement = clientElement.parentNode;
+      }
+      while (clientElement && clientElement.tagName == undefined || !isEditorChild(clientElement)) {
+        clientElement = clientElement.parentNode;
+      }
+      clientRectBounds = clientElement.getBoundingClientRect();
+
+      var editBounds = editNode.getBoundingClientRect();
+      var editorTop = editBounds.top + root.pageYOffset;
+      var currentEditTop = clientRectBounds.top + root.pageYOffset;
+
+      return (editorTop > currentEditTop) ? editNode : clientElement;
     }
 
     function iterateTextMenuButtons(callback) {
@@ -339,6 +369,12 @@
         return;
       }
 
+      // If the selection isn't wrapped by any element.
+      // Put it inside a paragraph.
+      if (sel.anchorNode.tagName === undefined) {
+        toggleFormatBlock("p");
+      }
+
       if (event.keyCode === 13 && parentParagraph) {
         prevSibling = parentParagraph.previousSibling;
         isHr = prevSibling && prevSibling.nodeName === "HR" &&
@@ -349,6 +385,10 @@
         if (isHr) {
           event.preventDefault();
         }
+
+        setTimeout(function() {
+          toggleSideMenu(event);
+        }, 100);
       }
       // When writing code, just insert a new line instead of a new pre element.
       else if (event.keyCode === 13 && parentPre) {
@@ -446,10 +486,13 @@
     function insertVideoOnSelection(sel, textProp) {
       var path = sel.anchorNode[textProp];
       sel.anchorNode[textProp] = '';
-      var html = "<figure><iframe width='560' height='315' src='http://www.youtube.com/embed/" + path + "'></iframe></figure>";
+      var re = /[?&]?([^=]+)=([^&]*)/g;
+      var matches = re.exec(path);
+      var youtubeId = matches[2];
+      var html = "<figure><iframe width='560' height='315' src='http://www.youtube.com/embed/" + youtubeId + "'></iframe></figure>";
       document.execCommand("insertHTML", false, html);
       return getParentWithTag(sel.anchorNode, 'figure');
-    }    
+    }
 
     function triggerTextParse(event) {
       var sel = window.getSelection(),
@@ -483,7 +526,7 @@
 
       if (subject.match(YOUTUBE_URL_REGEX)) {
         insertedNode = insertVideoOnSelection(sel, textProp);
-      }      
+      }
 
       unwrap = insertedNode &&
               ["ul", "ol"].indexOf(insertedNode.nodeName.toLocaleLowerCase()) >= 0 &&
@@ -648,6 +691,7 @@
 
       // The selected text is collapsed, push the menu out of the way
       if (selectedText.isCollapsed) {
+        toggleSideMenu(e);
         setTextMenuPosition(EDGE, EDGE);
         textMenu.className = "text-menu hide";
       } else {
@@ -683,18 +727,28 @@
     function triggerContentFocus(e) {
       var el = e.target, wasPlaceholder;
       var p = el.getElementsByClassName('g-placeholder');
+      var elHeight = 0;
       for (var i=0; i < p.length; i++) {
+        if (elHeight < p[i].offsetHeight) {
+          elHeight = p[i].offsetHeight;
+        }
         el.removeChild(p[i]);
         wasPlaceholder = true;
       }
 
-      // A hack to get the element to focus.
       if (wasPlaceholder) {
-        var range = document.createRange();
-        range.selectNodeContents(this);
-        var sel = window.getSelection();
-        sel.removeAllRanges();
-        sel.addRange(range);
+        if (isFirefox) {
+          // Firefox doesn't keep the height
+          el.style.height = elHeight + 'px';
+          this.focus();
+        } else {
+          // A hack to get the element to focus.
+          var range = document.createRange();
+          range.selectNodeContents(this);
+          var sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
       }
      }
 
