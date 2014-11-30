@@ -479,6 +479,24 @@
       return textProp;
     }
 
+    function insertQuoteOnSelection(sel, textProp, listType) {
+      var text = sel.anchorNode[textProp];
+      if (text.length > 0 &&
+          (text.indexOf('"') == 0 ||
+           text.indexOf("'") == 0)) {
+        text = text.substring(1);
+      }
+      if (text.length > 0 &&
+          (text.indexOf('"') == text.length - 1 ||
+           text.indexOf("'") == text.length - 1)) {
+        text = text.substring(0, text.length - 1);
+      }
+      sel.anchorNode[textProp] = '';
+      var html = "<blockquote>&nbsp;" + text +"</blockquote>";
+      document.execCommand("insertHTML", false, html);
+      return getParentWithTag(sel.anchorNode, 'figure');
+    }
+
     function insertListOnSelection(sel, textProp, listType) {
       var execListCommand = listType === "ol" ? "insertOrderedList" : "insertUnorderedList",
           nodeOffset = listType === "ol" ? 3 : 2;
@@ -532,6 +550,10 @@
 
       if (subject.match(/^(1|١)[\.\-\)\(]\s/) && sel.anchorNode.parentNode.nodeName !== "LI") {
         insertedNode = insertListOnSelection(sel, textProp, "ol");
+      }
+
+      if (subject.match(/^["']/) && sel.anchorNode.parentNode.nodeName !== "blockquote") {
+        insertedNode = insertQuoteOnSelection(sel, textProp, "blockquote");
       }
 
       if (options.mode === "rich" && options.imagesFromUrls && subject.match(IMAGE_URL_REGEX)) {
