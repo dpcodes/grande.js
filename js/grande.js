@@ -12,15 +12,17 @@
         editNode = bindableNodes[0], // TODO: cross el support for imageUpload
         isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1,
         options = {
-          containerEl: document,
+          containerEl: document.body,
           animate: true,
           placeholder: null,
           mode: "rich", // inline, rich, partial
           rtl: false,
           imagesFromUrls: false, // Convert images urls to <img>s. Must be "rich" mode.
           allowImages: false,
+          enableGuids: false,
           imageTooltipLabel: 'Insert Image',
           urlInputPlaceholder: 'Paste or type a link',
+          sanitizePastedContent: true,
           // This will be called when a user select an image to insert into the article.
           // It should accept two params (filesList, insertImageCallback(imgurl)).
           // filesList is going to be the list of files the user selected,
@@ -86,6 +88,32 @@
       };
     }
 
+    /**
+     * Generates a random GUID-like string.
+     * REF: http://goo.gl/mYz5Ax.
+     * @return {string} A GUID-like string.
+     */
+    function guid() {
+      var guidFormat = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx';
+      return guidFormat.replace(/[xy]/g, function(c) {
+        var r = Math.random()*16|0, v = c == 'x' ? r : (r&0x3|0x8);
+        return v.toString(16);
+      });
+    }
+
+    /**
+     * Sets element id attribute to a unique ID.
+     * @param {HTMLElement} element Element to set its ID.
+     */
+    function setElementGUID(element) {
+      if (options.enableGuids) {
+        element.setAttribute('data-guid', guid());
+        if (element.className.indexOf('guid-tagged') == -1) {
+          element.className += ' guid-tagged';
+        }
+      }
+    }
+
     function addPlaceholder(el, text) {
       // Remove any <br> elements.
       var brs = el.getElementsByTagName('br');
@@ -128,18 +156,17 @@
       div.className = "text-menu hide";
       div.innerHTML = toolbarTemplate;
 
-      if (document.querySelectorAll(".text-menu").length === 0) {
-        toolbarContainer.appendChild(div);
-        toolbarContainer.appendChild(imageTooltipTemplate);
-      }
+      // TODO(mkhatib): Need to clean up these elements and add a way to destroy them.
+      toolbarContainer.appendChild(div);
+      toolbarContainer.appendChild(imageTooltipTemplate);
 
-      imageInput = document.querySelectorAll(".file-label + input")[0];
-      imageTooltip = document.querySelectorAll(".image-tooltip")[0];
+      imageInput = toolbarContainer.querySelectorAll(".file-label + input")[0];
+      imageTooltip = toolbarContainer.querySelectorAll(".image-tooltip")[0];
       imageTooltip.style.top = EDGE + 'px';
       imageTooltip.style.left = EDGE + 'px';
-      textMenu = document.querySelectorAll(".text-menu")[0];
-      optionsNode = document.querySelectorAll(".text-menu .options")[0];
-      urlInput = document.querySelectorAll(".text-menu .url-input")[0];
+      textMenu = toolbarContainer.querySelectorAll(".text-menu")[0];
+      optionsNode = toolbarContainer.querySelectorAll(".text-menu .options")[0];
+      urlInput = toolbarContainer.querySelectorAll(".text-menu .url-input")[0];
 
       editNode.onblur = hideSideMenu;
     }
@@ -163,6 +190,11 @@
         if (options.allowImages && options.uploadCallback) {
           imageTooltip.onmousedown = triggerImageUpload;
           imageInput.onchange = uploadImage;
+        }
+
+        // Handles pasting events to make sure to sanitize and cleanup the markup.
+        if (options.sanitizePastedContent) {
+          node.onpaste = handlePaste;
         }
 
         // Trigger on both mousedown and mouseup so that the click on the menu
@@ -201,6 +233,7 @@
       if (options.uploadCallback) {
         // Prepare the figure and progress bar elements.
         var figureEl = document.createElement("figure");
+        setElementGUID(figureEl);
         var progressEl = document.createElement("p")
         progressEl.className = "g-progress-bar";
         var progressIndicatorEl = document.createElement("span");
@@ -258,27 +291,29 @@
       }
 
       // The selected text is collapsed, push the menu out of the way
-      range = selectedText.getRangeAt(0);
-      clientRectBounds = range.getBoundingClientRect();
-      if (clientRectBounds.height === 0) {
-        if (range.startContainer.tagName == undefined) {
-          clientRectBounds = range.startContainer.parentNode.getBoundingClientRect();
-        } else {
-          clientRectBounds = range.startContainer.getBoundingClientRect();
+      if (selectedText.type != 'None') {
+        range = selectedText.getRangeAt(0);
+        clientRectBounds = range.getBoundingClientRect();
+        if (clientRectBounds.height === 0) {
+          if (range.startContainer.tagName == undefined) {
+            clientRectBounds = range.startContainer.parentNode.getBoundingClientRect();
+          } else {
+            clientRectBounds = range.startContainer.getBoundingClientRect();
+          }
         }
-      }
-      var editBounds = editNode.getBoundingClientRect();
-      var targetBounds = target.getBoundingClientRect();
-      var editorTop = editBounds.top + root.pageYOffset;
-      var targetTop = targetBounds.top + root.pageYOffset;
-      var currentEditTop = clientRectBounds.top + root.pageYOffset;
+        var editBounds = editNode.getBoundingClientRect();
+        var targetBounds = target.getBoundingClientRect();
+        var editorTop = editBounds.top + root.pageYOffset;
+        var targetTop = targetBounds.top + root.pageYOffset;
+        var currentEditTop = clientRectBounds.top + root.pageYOffset;
 
-      imageTooltip.style.top = (Math.max(editorTop, currentEditTop, targetTop) - 20) + "px";
-      var width = imageTooltip.getElementsByClassName('file-label-container')[0].offsetWidth;
-      if (!options.rtl) {
-        imageTooltip.style.left = (editBounds.left - width - 10 ) + "px";
-      } else {
-        imageTooltip.style.left = (editBounds.right + width + 10 ) + "px";
+        imageTooltip.style.top = (Math.max(editorTop, currentEditTop, targetTop) - 20) + "px";
+        var width = imageTooltip.getElementsByClassName('file-label-container')[0].offsetWidth;
+        if (!options.rtl) {
+          imageTooltip.style.left = (editBounds.left - width - 10 ) + "px";
+        } else {
+          imageTooltip.style.left = (editBounds.right + width + 10 ) + "px";
+        }
       }
     }
 
@@ -318,7 +353,7 @@
     }
 
     function iterateTextMenuButtons(callback) {
-      var textMenuButtons = document.querySelectorAll(".text-menu button"),
+      var textMenuButtons = textMenu.querySelectorAll("button"),
           i,
           len,
           node,
@@ -371,6 +406,163 @@
       });
     }
 
+    // Reference for selection saving: http://goo.gl/8wNYSa
+    function saveSelection(containerEl) {
+      var charIndex = 0, start = 0, end = 0, foundStart = false, stop = {};
+      var noText = false;
+      var sel = window.getSelection(), range;
+
+      function traverseTextNodes(node, range) {
+        if (node.nodeType == 3 || node == range.startContainer || node == range.endContainer) {
+          if (!foundStart && node == range.startContainer) {
+            start = charIndex + range.startOffset;
+            foundStart = true;
+          }
+          if (foundStart && node == range.endContainer) {
+            end = charIndex + range.endOffset;
+            noText = node.nodeType != 3
+            throw stop;
+          }
+          charIndex += node.length;
+        } else {
+          for (var i = 0, len = node.childNodes.length; i < len; ++i) {
+            traverseTextNodes(node.childNodes[i], range);
+          }
+        }
+      }
+
+      if (sel.rangeCount) {
+        try {
+          traverseTextNodes(containerEl, sel.getRangeAt(0));
+        } catch (ex) {
+          if (ex != stop) {
+            throw ex;
+          }
+        }
+      }
+
+      return {
+          start: start,
+          end: end,
+          noText: noText,
+          scroll: options.containerEl.scrollTop
+      };
+    }
+
+    function restoreSelection(containerEl, savedSel) {
+      var charIndex = 0, range = document.createRange(), foundStart = false, stop = {};
+      range.setStart(containerEl, 0);
+      range.collapse(true);
+
+      function traverseTextNodes(node) {
+          if (node.nodeType == 3) {
+              var nextCharIndex = charIndex + node.length;
+              if (!foundStart && savedSel.start >= charIndex && savedSel.start <= nextCharIndex) {
+                  range.setStart(node, savedSel.start - charIndex);
+                  foundStart = true;
+              }
+              if (foundStart && savedSel.end >= charIndex && savedSel.end <= nextCharIndex) {
+                  range.setEnd(node, savedSel.end - charIndex);
+                  throw stop;
+              }
+              charIndex = nextCharIndex;
+          } else {
+              for (var i = 0, len = node.childNodes.length; i < len; ++i) {
+                  traverseTextNodes(node.childNodes[i]);
+              }
+          }
+      }
+
+      try {
+          traverseTextNodes(containerEl);
+      } catch (ex) {
+          if (ex == stop) {
+              var sel = window.getSelection();
+              sel.removeAllRanges();
+              sel.addRange(range);
+              options.containerEl.scrollTop = savedSel.scroll;
+          } else {
+              throw ex;
+          }
+      }
+    }
+
+    // Paste handling reference: http://goo.gl/sMf61T
+    function handlePaste(e) {
+      var elem = this;
+      var savedContent = elem.innerHTML;
+      var savedSel = saveSelection(elem);
+      // Webkit - get data from clipboard, put into editdiv, cleanup, then cancel event.
+      if (e && e.clipboardData && e.clipboardData.getData) {
+        if (/text\/html/.test(e.clipboardData.types)) {
+          elem.innerHTML = e.clipboardData.getData('text/html');
+        }
+        else if (/text\/plain/.test(e.clipboardData.types)) {
+          elem.innerHTML = e.clipboardData.getData('text/plain');
+        }
+        else {
+          elem.innerHTML = "";
+        }
+
+        waitForPasteData(elem, savedContent, savedSel);
+        if (e.preventDefault) {
+          e.stopPropagation();
+          e.preventDefault();
+        }
+        return false;
+      }
+      // Everything else - empty editdiv and allow browser to paste content into it, then cleanup
+      else {
+        elem.innerHTML = "";
+        waitForPasteData(elem, savedContentm, savedSel);
+        return true;
+      }
+    }
+
+    function waitForPasteData(elem, savedContent, savedSel) {
+      if (elem.childNodes && elem.childNodes.length > 0) {
+        processPaste(elem, savedContent, savedSel);
+      }
+      else {
+        var that = { e: elem, s: savedContent, sel: savedSel };
+        that.callSelf = function() {
+            waitForPasteData(that.e, that.s, that.sel)
+        };
+        setTimeout(that.callSelf, 20);
+      }
+    }
+
+    function processPaste(elem, savedContent, savedSel) {
+      var pastedData = elem.innerText;
+      elem.innerHTML = savedContent;
+
+      var isNotEmpty = function(value) {
+        return !!value.trim();
+      };
+
+
+      if (!savedSel.noText) {
+        restoreSelection(elem, savedSel);
+        if (pastedData.indexOf('\n') == -1) {
+          document.execCommand("insertText", false, pastedData);
+          return;
+        }
+      } else {
+        options.containerEl.scrollTop = savedSel.scroll;
+      }
+
+      var lines = pastedData.split('\n').filter(isNotEmpty);
+      for(var i = 0; i < lines.length ; i++) {
+        document.execCommand("insertText", false, lines[i]);
+        var insertedNode = triggerTextParse({});
+        if (!insertedNode || insertedNode.tagName != 'FIGURE') {
+          document.execCommand("insertParagraph", false, '');
+          toggleFormatBlock('p');
+        }
+      }
+    }
+
+
     function preprocessKeyDown(event) {
       var sel = window.getSelection(),
           parentParagraph = getParentWithTag(sel.anchorNode, "p"),
@@ -420,8 +612,11 @@
       if (event.keyCode === 13) {
 
         // Enters should replace it's parent <div> with a <p>
-        if (sel.anchorNode.nodeName === "DIV") {
+        if (sel.anchorNode.nodeName === "DIV" || sel.anchorNode.nodeName == undefined) {
           toggleFormatBlock("p");
+          if (sel.anchorNode.previousSibling && sel.anchorNode.previousSibling.nodeName === "DIV") {
+            sel.anchorNode.previousSibling.parentNode.removeChild(sel.anchorNode.previousSibling);
+          }
         }
 
         // Replace figure elements on new line with a p and set focus on it.
@@ -455,7 +650,7 @@
         prevPrevSibling = prevPrevSibling.previousSibling;
       }
 
-      if (prevSibling.nodeName === "P" &&
+      if (prevSibling && prevSibling.nodeName === "P" &&
           !prevSibling.textContent.length &&
           !prevSibling.getElementsByTagName('img').length &&
           prevPrevSibling.nodeName !== "HR") {
@@ -479,22 +674,23 @@
       return textProp;
     }
 
+    // TODO(mkhatib): There's a bug with inserting a quote at the very beginning
+    // of the editing node.
     function insertQuoteOnSelection(sel, textProp, listType) {
       var text = sel.anchorNode[textProp];
-      if (text.length > 0 &&
-          (text.indexOf('"') == 0 ||
-           text.indexOf("'") == 0)) {
+      if (text.length > 0 && text.match(/^["“'”]/)) {
         text = text.substring(1);
       }
-      if (text.length > 0 &&
-          (text.indexOf('"') == text.length - 1 ||
-           text.indexOf("'") == text.length - 1)) {
+      if (text.length > 0 && text.match(/["“'”]$/)) {
         text = text.substring(0, text.length - 1);
       }
+      if (text.length == 0) {
+        text = '&nbsp;';
+      }
       sel.anchorNode[textProp] = '';
-      var html = "<blockquote>&nbsp;" + text +"</blockquote>";
+      var html = "<blockquote>" + text +"</blockquote>";
       document.execCommand("insertHTML", false, html);
-      return getParentWithTag(sel.anchorNode, 'figure');
+      return getParentWithTag(sel.anchorNode, 'blockquote');
     }
 
     function insertListOnSelection(sel, textProp, listType) {
@@ -544,6 +740,10 @@
       textProp = getTextProp(sel.anchorNode);
       subject = sel.anchorNode[textProp];
 
+      if (sel.anchorNode.tagName === undefined && sel.anchorNode.parentNode == editNode) {
+        toggleFormatBlock("p");
+      }
+
       if (subject.match(/^[-*]\s/) && sel.anchorNode.parentNode.nodeName !== "LI") {
         insertedNode = insertListOnSelection(sel, textProp, "ul");
       }
@@ -552,7 +752,7 @@
         insertedNode = insertListOnSelection(sel, textProp, "ol");
       }
 
-      if (subject.match(/^["']/) && sel.anchorNode.parentNode.nodeName !== "blockquote") {
+      if (subject.match(/^["“'”]/) && sel.anchorNode.parentNode.nodeName !== "blockquote") {
         insertedNode = insertQuoteOnSelection(sel, textProp, "blockquote");
       }
 
@@ -562,6 +762,31 @@
 
       if (subject.match(YOUTUBE_URL_REGEX)) {
         insertedNode = insertVideoOnSelection(sel, textProp);
+      }
+
+      // Add GUIDs to inserted elements.
+      if (insertedNode) {
+        setElementGUID(insertedNode);
+        // UL and OL inserted notes will also have a child li right away.
+        // Make sure that all their children have guid set.
+        if (["ul", "ol"].indexOf(insertedNode.nodeName.toLocaleLowerCase()) >= 0) {
+          var lisChildren = insertedNode.getElementsByTagName('li');
+          for (var i = 0; i < lisChildren.length; i++) {
+            setElementGUID(lisChildren[i]);
+          }
+        }
+      } else {
+        // By default the enter key will copy whatever previous element it was
+        // on with attributes and all. Make sure to set a new GUID to the element
+        // if it has the same GUID in all.
+        if (event.keyCode == 13 && sel.anchorNode)  {
+          var currentId = sel.anchorNode.getAttribute('data-guid');
+          var prevEl = sel.anchorNode.previousSibling;
+          var prevId = prevEl ? prevEl.getAttribute('data-guid') : null;
+          if (!currentId || currentId == prevId) {
+            setElementGUID(sel.anchorNode);
+          }
+        }
       }
 
       unwrap = insertedNode &&
@@ -575,6 +800,8 @@
         parent.parentNode.removeChild(parent);
         moveCursorToBeginningOfSelection(sel, node);
       }
+
+      return insertedNode;
     }
 
     function moveCursorToBeginningOfSelection(selection, node) {
@@ -657,12 +884,17 @@
     }
 
     function toggleFormatBlock(tag) {
+      var appliedTag = tag;
       if (hasParentWithTag(getFocusNode(), tag)) {
+        appliedTag = 'p';
         document.execCommand("formatBlock", false, "p");
         document.execCommand("outdent");
       } else {
         document.execCommand("formatBlock", false, tag);
       }
+      var sel = window.getSelection();
+      var element = getParentWithTag(sel.anchorNode, appliedTag);
+      setElementGUID(element);
     }
 
     function toggleUrlInput() {
