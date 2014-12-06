@@ -20,6 +20,7 @@
           imagesFromUrls: false, // Convert images urls to <img>s. Must be "rich" mode.
           allowImages: false,
           enableGuids: false,
+          guidAttribute: 'id',
           imageTooltipLabel: 'Insert Image',
           urlInputPlaceholder: 'Paste or type a link',
           sanitizePastedContent: true,
@@ -107,7 +108,7 @@
      */
     function setElementGUID(element) {
       if (options.enableGuids) {
-        element.setAttribute('data-guid', guid());
+        element.setAttribute(options.guidAttribute, guid());
         if (element.className.indexOf('guid-tagged') == -1) {
           element.className += ' guid-tagged';
         }
@@ -780,9 +781,9 @@
         // on with attributes and all. Make sure to set a new GUID to the element
         // if it has the same GUID in all.
         if (event.keyCode == 13 && sel.anchorNode)  {
-          var currentId = sel.anchorNode.getAttribute('data-guid');
+          var currentId = sel.anchorNode.getAttribute(options.guidAttribute);
           var prevEl = sel.anchorNode.previousSibling;
-          var prevId = prevEl ? prevEl.getAttribute('data-guid') : null;
+          var prevId = prevEl ? prevEl.getAttribute(options.guidAttribute) : null;
           if (!currentId || currentId == prevId) {
             setElementGUID(sel.anchorNode);
           }
