@@ -495,10 +495,20 @@
       var savedSel = saveSelection(elem);
       // Webkit - get data from clipboard, put into editdiv, cleanup, then cancel event.
       if (e && e.clipboardData && e.clipboardData.getData) {
-        if (/text\/html/.test(e.clipboardData.types)) {
+        var types = e.clipboardData.types;
+        // Firefox have a specific datastructure for for types, so regex test
+        // won't be able to run against it. Instead loop over the structure and
+        // turn types into a normal array of string.
+        if (isFirefox) {
+          types = [];
+          for(var i = 0; i < e.clipboardData.types.length; i++) {
+            types.push(e.clipboardData.types[i]);
+          }
+        }
+        if (/text\/html/.test(types)) {
           elem.innerHTML = e.clipboardData.getData('text/html');
         }
-        else if (/text\/plain/.test(e.clipboardData.types)) {
+        else if (/text\/plain/.test(types)) {
           elem.innerHTML = e.clipboardData.getData('text/plain');
         }
         else {
@@ -515,7 +525,7 @@
       // Everything else - empty editdiv and allow browser to paste content into it, then cleanup
       else {
         elem.innerHTML = "";
-        waitForPasteData(elem, savedContentm, savedSel);
+        waitForPasteData(elem, savedContent, savedSel);
         return true;
       }
     }
@@ -534,7 +544,7 @@
     }
 
     function processPaste(elem, savedContent, savedSel) {
-      var pastedData = elem.innerText;
+      var pastedData = elem[getTextProp(elem)];
       elem.innerHTML = savedContent;
 
       var isNotEmpty = function(value) {
@@ -554,10 +564,17 @@
 
       var lines = pastedData.split('\n').filter(isNotEmpty);
       for(var i = 0; i < lines.length ; i++) {
-        document.execCommand("insertText", false, lines[i]);
+        if (lines[i].trim() === '') {
+          continue;
+        }
+        document.execCommand("insertText", false, lines[i].trim());
         var insertedNode = triggerTextParse({});
         if (!insertedNode || insertedNode.tagName != 'FIGURE') {
           document.execCommand("insertParagraph", false, '');
+
+          if (isFirefox) {
+            document.execCommand("insertHtml", false, '<p><br/></p>');
+          }
           toggleFormatBlock('p');
         }
       }
