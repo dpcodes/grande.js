@@ -560,6 +560,13 @@
         }
       } else {
         options.containerEl.scrollTop = savedSel.scroll;
+        if (isFirefox) {
+          restoreSelection(elem, savedSel);
+          var cEl = getCurrentElementAtCursor();
+          if (cEl.nextSibling) {
+            moveCursorToBeginningOfSelection(window.getSelection(), cEl.nextSibling);
+          }
+        }
       }
 
       var lines = pastedData.split('\n').filter(isNotEmpty);
@@ -724,9 +731,17 @@
     function insertImageOnSelection(sel, textProp) {
       var path = sel.anchorNode[textProp];
       sel.anchorNode[textProp] = '';
-      var html = "<figure><img src=\"" + path + "\"/></figure>";
-      document.execCommand("insertHTML", false, html);
-      return getParentWithTag(sel.anchorNode, 'figure');
+      // Prepare the figure and progress bar elements.
+      var figureEl = document.createElement("figure");
+      setElementGUID(figureEl);
+      var currentElement = getCurrentElementAtCursor();
+      if (currentElement != editNode) {
+        editNode.insertBefore(figureEl, currentElement);
+      } else {
+        editNode.appendChild(figureEl);
+      }
+      figureEl.innerHTML = "<img src=\"" + path + "\"/>";
+      return figureEl;
     }
 
     function insertVideoOnSelection(sel, textProp) {
@@ -735,9 +750,19 @@
       var re = /[?&]?([^=]+)=([^&]*)/g;
       var matches = re.exec(path);
       var youtubeId = matches[2];
-      var html = "<figure><iframe width='560' height='315' src='http://www.youtube.com/embed/" + youtubeId + "'></iframe></figure>";
-      document.execCommand("insertHTML", false, html);
-      return getParentWithTag(sel.anchorNode, 'figure');
+      var html = "<figure></figure>";
+
+      // Prepare the figure and progress bar elements.
+      var figureEl = document.createElement("figure");
+      setElementGUID(figureEl);
+      var currentElement = getCurrentElementAtCursor();
+      if (currentElement != editNode) {
+        editNode.insertBefore(figureEl, currentElement);
+      } else {
+        editNode.appendChild(figureEl);
+      }
+      figureEl.innerHTML = "<iframe width='560' height='315' src='http://www.youtube.com/embed/" + youtubeId + "'></iframe>";
+      return figureEl;
     }
 
     function triggerTextParse(event) {
