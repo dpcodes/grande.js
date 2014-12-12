@@ -761,7 +761,8 @@
       } else {
         editNode.appendChild(figureEl);
       }
-      figureEl.innerHTML = "<iframe width='560' height='315' src='http://www.youtube.com/embed/" + youtubeId + "'></iframe>";
+      var url = "https://www.youtube.com/embed/" + youtubeId + "?modestbranding=1&showinfo=0&autohide=1&iv_load_policy=3";
+      figureEl.innerHTML = "<iframe width='560' height='315' src='" + url + "'></iframe>";
       return figureEl;
     }
 
