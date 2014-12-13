@@ -547,14 +547,52 @@
       }
     }
 
+    function getSanitizedLines(elem) {
+      var children = elem.children;
+      if (!children || !children.length) {
+        return [elem[getTextProp(elem)]];
+      }
+      var lines = [];
+      for (var i = 0; i < children.length; i++) {
+        var el = children[i];
+        var tag = el.tagName && el.tagName.toLowerCase();
+        switch (tag) {
+          case undefined:
+          case 'meta':
+          case 'script':
+          case 'style':
+          case 'embed':
+            continue;
+          case 'img':
+            lines.push(el.getAttribute('src'));
+            break;
+          case 'figure':
+            // If the figure element has img elements.
+            var imgs = el.getElementsByTagName('img');
+            for (var j = 0; j < imgs.length ; j++) {
+              lines.push(imgs[j].getAttribute('src'));
+            }
+            // If the figure element has iframes.
+            var iframes = el.getElementsByTagName('iframe');
+            for (j = 0; j < iframes.length ; j++) {
+              // Transfer embed links to a normal YouTube URL.
+              var path = iframes[j].getAttribute('src');
+              var parts = path.split('?')[0].split('/');
+              var youtubeId = parts[parts.length - 1];
+              lines.push('https://www.youtube.com/watch?v=' + youtubeId);
+            }
+            break;
+          default:
+            lines.push(el[getTextProp(el)]);
+        }
+      }
+      return lines;
+    }
+
     function processPaste(elem, savedContent, savedSel) {
+      var lines = getSanitizedLines(elem);
       var pastedData = elem[getTextProp(elem)];
       elem.innerHTML = savedContent;
-
-      var isNotEmpty = function(value) {
-        return !!value.trim();
-      };
-
 
       if (!savedSel.noText) {
         restoreSelection(elem, savedSel);
@@ -573,14 +611,13 @@
         }
       }
 
-      var lines = pastedData.split('\n').filter(isNotEmpty);
       for(var i = 0; i < lines.length ; i++) {
         if (lines[i].trim() === '') {
           continue;
         }
         document.execCommand("insertText", false, lines[i].trim());
         var insertedNode = triggerTextParse({});
-        if (!insertedNode || insertedNode.tagName != 'FIGURE') {
+        if (!insertedNode || ['FIGURE', 'BLOCKQUOTE', 'UL', 'OL'].indexOf(insertedNode.tagName) === -1) {
           document.execCommand("insertParagraph", false, '');
 
           if (isFirefox) {
@@ -590,7 +627,6 @@
         }
       }
     }
-
 
     function preprocessKeyDown(event) {
       var sel = window.getSelection(),
@@ -650,9 +686,26 @@
 
         // Replace figure elements on new line with a p and set focus on it.
         if (sel.anchorNode.nodeName === "FIGURE") {
+          if (isFirefox) {
+            moveCursorToBeginningOfSelection(sel, sel.anchorNode.nextSibling);
+            toggleFormatBlock("p");
+            if (sel.anchorNode.parentNode != editNode &&
+                sel.anchorNode.parentNode.tagName != 'FIGURE') {
+              sel.anchorNode.parentNode.innerHTML = '<br/>';
+              sel.anchorNode.childNodes[0].focus();
+            }
+          } else {
+            toggleFormatBlock("p");
+            sel.anchorNode.parentNode.innerHTML = '<br/>';
+            sel.anchorNode.childNodes[0].focus();
+          }
+        }
+
+        if (sel.anchorNode.nodeName === 'BLOCKQUOTE') {
+          if (isFirefox) {
+            moveCursorToBeginningOfSelection(sel, sel.anchorNode.nextSibling);
+          }
           toggleFormatBlock("p");
-          sel.anchorNode.parentNode.innerHTML = '<span><br/></span>';
-          sel.anchorNode.childNodes[0].focus();
         }
 
         parentParagraph = getParentWithTag(sel.anchorNode, "p");
@@ -705,7 +758,7 @@
 
     // TODO(mkhatib): There's a bug with inserting a quote at the very beginning
     // of the editing node.
-    function insertQuoteOnSelection(sel, textProp, listType) {
+    function insertQuoteOnSelection(sel, textProp) {
       var text = sel.anchorNode[textProp];
       if (text.length > 0 && text.match(/^["“'”]/)) {
         text = text.substring(1);
@@ -717,6 +770,7 @@
         text = '&nbsp;';
       }
       sel.anchorNode[textProp] = '';
+
       var html = "<blockquote>" + text +"</blockquote>";
       document.execCommand("insertHTML", false, html);
       return getParentWithTag(sel.anchorNode, 'blockquote');
@@ -806,6 +860,13 @@
 
       if (options.mode === "rich" && options.imagesFromUrls && subject.match(IMAGE_URL_REGEX)) {
         insertedNode = insertImageOnSelection(sel, textProp);
+        // toggleFormatBlock('figure');
+        if (insertedNode && insertedNode.tagName === 'FIGURE') {
+          var sibling = insertedNode.previousSibling;
+          if (sibling && sibling.tagName === 'P' && sibling.innerHTML.length === 0) {
+            sibling.parentNode.removeChild(sibling);
+          }
+        }
       }
 
       if (subject.match(YOUTUBE_URL_REGEX)) {
