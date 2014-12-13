@@ -107,7 +107,7 @@
      * @param {HTMLElement} element Element to set its ID.
      */
     function setElementGUID(element) {
-      if (options.enableGuids) {
+      if (options.enableGuids && element) {
         element.setAttribute(options.guidAttribute, guid());
         if (element.className.indexOf('guid-tagged') == -1) {
           element.className += ' guid-tagged';
@@ -341,8 +341,12 @@
       if (clientElement.tagName == undefined) {
         clientElement = clientElement.parentNode;
       }
-      while (clientElement && clientElement.tagName == undefined || !isEditorChild(clientElement)) {
+      while (clientElement && clientElement != editNode &&
+             (clientElement.tagName == undefined || !isEditorChild(clientElement))) {
         clientElement = clientElement.parentNode;
+      }
+      if (!clientElement) {
+        clientElement = editNode;
       }
       clientRectBounds = clientElement.getBoundingClientRect();
 
@@ -563,7 +567,7 @@
         if (isFirefox) {
           restoreSelection(elem, savedSel);
           var cEl = getCurrentElementAtCursor();
-          if (cEl.nextSibling) {
+          if (cEl != editNode && cEl.nextSibling) {
             moveCursorToBeginningOfSelection(window.getSelection(), cEl.nextSibling);
           }
         }
