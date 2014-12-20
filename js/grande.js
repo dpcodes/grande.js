@@ -3,6 +3,7 @@
   var EDGE = -999;
   var IMAGE_URL_REGEX = /^https?:\/\/(.*)\.(jpg|png|gif|jpeg)(\?.*)?/i;
   var YOUTUBE_URL_REGEX = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/;
+  var GUID_ENABLED_TAGS = 'P BLOCKQUOTE LI H1 H2 H3 H4 H5 H6 FIGURE PRE'.split(' ');
 
   var Grande = Grande || function (bindableNodes, userOpts) {
 
@@ -113,6 +114,19 @@
           element.className += ' guid-tagged';
         }
       }
+    }
+
+    /**
+     *
+     */
+    function getGuidEnabledNode(element) {
+      console.log(element.tagName);
+       if (GUID_ENABLED_TAGS.indexOf(element.tagName) !== -1) {
+        return element;
+       }
+       if (element.parentNode !== editNode) {
+         return getGuidEnabledNode(element.parentNode);
+       }
     }
 
     function addPlaceholder(el, text) {
@@ -582,6 +596,19 @@
               lines.push('https://www.youtube.com/watch?v=' + youtubeId);
             }
             break;
+          case 'ul':
+          case 'ol':
+            var lis = el.getElementsByTagName('li');
+            for (var j = 0; j < lis.length ; j++) {
+              lines.push(lis[j][getTextProp(lis[j])]);
+            }
+            break;
+          case 'pre':
+            var preLines = el[getTextProp(el)].split('\n');
+            for (var j = 0; j < preLines.length ; j++) {
+              lines.push(preLines[j]);
+            }
+            break;
           default:
             lines.push(el[getTextProp(el)]);
         }
@@ -640,6 +667,18 @@
         return;
       }
 
+      // If there is a div turn it into a paragraph.
+      if (sel.anchorNode.nodeName === "DIV" ||
+          sel.anchorNode.nodeName == undefined) {
+        toggleFormatBlock("p");
+        return true;
+      } else if (sel.anchorNode.nodeName === '#text' &&
+                 sel.anchorNode.parentNode &&
+                 sel.anchorNode.parentNode.nodeName === 'DIV') {
+        toggleFormatBlock("p");
+        return true;
+      }
+
       // If the selection isn't wrapped by any element. Put it inside a paragraph.
       if (sel.anchorNode.tagName === undefined &&
           sel.anchorNode.parentNode == editNode) {
@@ -679,9 +718,6 @@
         // Enters should replace it's parent <div> with a <p>
         if (sel.anchorNode.nodeName === "DIV" || sel.anchorNode.nodeName == undefined) {
           toggleFormatBlock("p");
-          if (sel.anchorNode.previousSibling && sel.anchorNode.previousSibling.nodeName === "DIV") {
-            sel.anchorNode.previousSibling.parentNode.removeChild(sel.anchorNode.previousSibling);
-          }
         }
 
         // Replace figure elements on new line with a p and set focus on it.
@@ -889,11 +925,12 @@
         // on with attributes and all. Make sure to set a new GUID to the element
         // if it has the same GUID in all.
         if (event.keyCode == 13 && sel.anchorNode)  {
-          var currentId = sel.anchorNode.getAttribute(options.guidAttribute);
-          var prevEl = sel.anchorNode.previousSibling;
+          var currentNode = getGuidEnabledNode(sel.anchorNode);
+          var currentId = currentNode.getAttribute(options.guidAttribute);
+          var prevEl = currentNode.previousSibling;
           var prevId = prevEl ? prevEl.getAttribute(options.guidAttribute) : null;
           if (!currentId || currentId == prevId) {
-            setElementGUID(sel.anchorNode);
+            setElementGUID(currentNode);
           }
         }
       }
