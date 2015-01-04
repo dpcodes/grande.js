@@ -25,6 +25,7 @@
           imageTooltipLabel: 'Insert Image',
           urlInputPlaceholder: 'Paste or type a link',
           sanitizePastedContent: true,
+          openLinksInBlank: true,
           // This will be called when a user select an image to insert into the article.
           // It should accept two params (filesList, insertImageCallback(imgurl)).
           // filesList is going to be the list of files the user selected,
@@ -245,7 +246,7 @@
     }
 
     function uploadImage(event) {
-      if (options.uploadCallback) {
+      if (options.uploadCallback && event.target.files.length) {
         // Prepare the figure and progress bar elements.
         var figureEl = document.createElement("figure");
         setElementGUID(figureEl);
@@ -1015,7 +1016,13 @@
         url = "http://" + url;
       }
 
-      document.execCommand("createLink", false, url);
+      if (options.openLinksInBlank) {
+        var sText = window.getSelection();
+        var linkHtml = '<a href="' + url + '" target="_blank">' + sText + '</a>';
+        document.execCommand("insertHTML", false, linkHtml);
+      } else {
+        document.execCommand("createLink", false, url);
+      }
 
       urlInput.value = "";
     }
