@@ -40,7 +40,6 @@
         previouslySelectedText,
         imageTooltip,
         imageInput,
-        imageBound,
         currentElement,
         scrollTopBegin,
 
@@ -89,7 +88,7 @@
           node.onblur = triggerContentBlur;
           node.onfocus = triggerContentFocus;
         }
-      };
+      }
     }
 
     /**
@@ -135,7 +134,7 @@
       // Remove any <br> elements.
       var brs = el.getElementsByTagName('br');
       for (var i = 0; i < brs.length; i++) { brs[i].parentNode.removeChild(brs[i]); }
-      p = document.createElement("span");
+      var p = document.createElement("span");
       p[getTextProp(p)] = text;
       p.className = "g-placeholder";
       el.appendChild(p);
@@ -251,7 +250,7 @@
         // Prepare the figure and progress bar elements.
         var figureEl = document.createElement("figure");
         setElementGUID(figureEl);
-        var progressEl = document.createElement("p")
+        var progressEl = document.createElement("p");
         progressEl.className = "g-progress-bar";
         var progressIndicatorEl = document.createElement("span");
         progressEl.appendChild(progressIndicatorEl);
@@ -312,7 +311,7 @@
         range = selectedText.getRangeAt(0);
         clientRectBounds = range.getBoundingClientRect();
         if (clientRectBounds.height === 0) {
-          if (range.startContainer.tagName == undefined) {
+          if (range.startContainer.tagName === undefined) {
             clientRectBounds = range.startContainer.parentNode.getBoundingClientRect();
           } else {
             clientRectBounds = range.startContainer.getBoundingClientRect();
@@ -354,11 +353,11 @@
       range = selectedText.getRangeAt(0);
       clientRectBounds = range.getBoundingClientRect();
       clientElement = range.startContainer;
-      if (clientElement.tagName == undefined) {
+      if (clientElement.tagName === undefined) {
         clientElement = clientElement.parentNode;
       }
       while (clientElement && clientElement != editNode &&
-             (clientElement.tagName == undefined || !isEditorChild(clientElement))) {
+             (clientElement.tagName === undefined || !isEditorChild(clientElement))) {
         clientElement = clientElement.parentNode;
       }
       if (!clientElement) {
@@ -441,7 +440,7 @@
           }
           if (foundStart && node == range.endContainer) {
             end = charIndex + range.endOffset;
-            noText = node.nodeType != 3
+            noText = node.nodeType != 3;
             throw stop;
           }
           charIndex += node.length;
@@ -557,7 +556,7 @@
       else {
         var that = { e: elem, s: savedContent, sel: savedSel };
         that.callSelf = function() {
-            waitForPasteData(that.e, that.s, that.sel)
+            waitForPasteData(that.e, that.s, that.sel);
         };
         setTimeout(that.callSelf, 20);
       }
@@ -565,6 +564,7 @@
 
     function getSanitizedLines(elem) {
       var children = elem.children;
+      var j = 0;
       if (!children || !children.length) {
         return [elem[getTextProp(elem)]];
       }
@@ -585,7 +585,7 @@
           case 'figure':
             // If the figure element has img elements.
             var imgs = el.getElementsByTagName('img');
-            for (var j = 0; j < imgs.length ; j++) {
+            for (j = 0; j < imgs.length ; j++) {
               lines.push(imgs[j].getAttribute('src'));
             }
             // If the figure element has iframes.
@@ -601,13 +601,13 @@
           case 'ul':
           case 'ol':
             var lis = el.getElementsByTagName('li');
-            for (var j = 0; j < lis.length ; j++) {
+            for (j = 0; j < lis.length ; j++) {
               lines.push(lis[j][getTextProp(lis[j])]);
             }
             break;
           case 'pre':
             var preLines = el[getTextProp(el)].split('\n');
-            for (var j = 0; j < preLines.length ; j++) {
+            for (j = 0; j < preLines.length ; j++) {
               lines.push(preLines[j]);
             }
             break;
@@ -662,7 +662,8 @@
           parentParagraph = getParentWithTag(sel.anchorNode, "p"),
           parentPre = getParentWithTag(sel.anchorNode, "pre"),
           p,
-          isHr;
+          isHr,
+          prevSibling;
 
       if (options.mode === "inline" && event.keyCode === 13) {
         event.preventDefault();
@@ -671,7 +672,7 @@
 
       // If there is a div turn it into a paragraph.
       if (sel.anchorNode.nodeName === "DIV" ||
-          sel.anchorNode.nodeName == undefined) {
+          sel.anchorNode.nodeName === undefined) {
         toggleFormatBlock("p");
         return true;
       } else if (sel.anchorNode.nodeName === '#text' &&
@@ -718,7 +719,7 @@
       if (event.keyCode === 13) {
 
         // Enters should replace it's parent <div> with a <p>
-        if (sel.anchorNode.nodeName === "DIV" || sel.anchorNode.nodeName == undefined) {
+        if (sel.anchorNode.nodeName === "DIV" || sel.anchorNode.nodeName === undefined) {
           toggleFormatBlock("p");
         }
 
@@ -804,7 +805,7 @@
       if (text.length > 0 && text.match(/["“'”]$/)) {
         text = text.substring(0, text.length - 1);
       }
-      if (text.length == 0) {
+      if (text.length === 0) {
         text = '&nbsp;';
       }
       sel.anchorNode[textProp] = '';
@@ -969,7 +970,7 @@
     }
 
     function moveCursorToBeginningOfSelection(selection, node) {
-      range = document.createRange();
+      var range = document.createRange();
       range.setStart(node, 0);
       range.setEnd(node, 0);
       selection.removeAllRanges();
@@ -1205,7 +1206,7 @@
     }
 
     init(bindableNodes, userOpts);
-  }
+  };
 
   // Exports and modularity
   if (typeof module !== 'undefined' && module.exports) {
