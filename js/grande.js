@@ -3,6 +3,7 @@
   var EDGE = -999;
   var IMAGE_URL_REGEX = /^https?:\/\/(.*)\.(jpg|png|gif|jpeg)(\?.*)?/i;
   var YOUTUBE_URL_REGEX = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/;
+  var VINE_URL_REGEX = /^http(?:s?):\/\/(?:www\.)?vine\.co\/v\/([a-zA-Z0-9]{1,13})/;
   var GUID_ENABLED_TAGS = 'P BLOCKQUOTE LI H1 H2 H3 H4 H5 H6 FIGURE PRE'.split(' ');
 
   var Grande = Grande || function (bindableNodes, userOpts) {
@@ -839,13 +840,9 @@
       return figureEl;
     }
 
-    function insertVideoOnSelection(sel, textProp) {
+    function insertVideoOnSelection(sel, textProp, vidType) {
       var path = sel.anchorNode[textProp];
       sel.anchorNode[textProp] = '';
-      var re = /[?&]?([^=]+)=([^&]*)/g;
-      var matches = re.exec(path);
-      var youtubeId = matches[2];
-      var html = "<figure></figure>";
 
       // Prepare the figure and progress bar elements.
       var figureEl = document.createElement("figure");
@@ -856,8 +853,24 @@
       } else {
         editNode.appendChild(figureEl);
       }
-      var url = "https://www.youtube.com/embed/" + youtubeId + "?modestbranding=1&showinfo=0&autohide=1&iv_load_policy=3";
-      figureEl.innerHTML = "<iframe width='560' height='315' src='" + url + "'></iframe>";
+      
+      var re, matches, vidId, url;
+      if(vidType == "youtube") {
+        re = /[?&]?([^=]+)=([^&]*)/g;
+        matches = re.exec(path);
+        vidId = matches[2];
+        url = "https://www.youtube.com/embed/" + vidId + "?modestbranding=1&showinfo=0&autohide=1&iv_load_policy=3";
+        figureEl.innerHTML = "<iframe width='560' height='315' src='" + url + "'></iframe>";
+      }
+
+      else if(vidType == "vine") {
+        re = /([a-zA-Z0-9]{11})/;
+        matches = re.exec(path);
+        vidId = matches[0];
+        url = "https://vine.co/v/"+ vidId +"/embed/simple";
+        figureEl.innerHTML = "<iframe width='480' height='480' src='" + url + "'></iframe>";
+      }
+
       return figureEl;
     }
 
@@ -906,8 +919,12 @@
         }
       }
 
-      if (subject.match(YOUTUBE_URL_REGEX)) {
-        insertedNode = insertVideoOnSelection(sel, textProp);
+      if (subject.match(VINE_URL_REGEX)) {
+        insertedNode = insertVideoOnSelection(sel, textProp, "vine");
+      }
+
+      if(subject.match(YOUTUBE_URL_REGEX)) {
+        insertedNode = insertVideoOnSelection(sel, textProp, "youtube");
       }
 
       // Add GUIDs to inserted elements.
