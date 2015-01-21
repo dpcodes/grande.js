@@ -79,7 +79,7 @@
       if (options.placeholder) {
         var p, node;
 
-        for (i = 0, len = editableNodes.length; i < len; i++) {
+        for (var i = 0, len = editableNodes.length; i < len; i++) {
           node = editableNodes[i];
           if (node[getTextProp(node)].trim()) {
             continue;
@@ -853,7 +853,7 @@
       } else {
         editNode.appendChild(figureEl);
       }
-      
+
       var re, matches, vidId, url;
       if(vidType == "youtube") {
         re = /[?&]?([^=]+)=([^&]*)/g;
