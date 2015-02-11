@@ -1176,7 +1176,7 @@
       }
 
       if (wasPlaceholder) {
-        el.style.height = elHeight + 'px';
+        el.style.minHeight = elHeight + 'px';
         if (isFirefox) {
           // Firefox needs this to focus the element.
           this.focus();
