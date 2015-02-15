@@ -277,10 +277,12 @@
     }
 
     function scrollListener(e) {
-      if (Math.abs(options.containerEl.scrollTop - scrollTopBegin) > 40) {
+      var el = options.containerEl.documentElement || options.containerEl;
+      var scrollTop = el.scrollTop || document.body.scrollTop;
+      if (Math.abs(scrollTop - scrollTopBegin) > 40) {
         imageTooltip.style.top = EDGE + 'px';
         imageTooltip.style.left = EDGE + 'px';
-        options.containerEl.removeEventListener('scroll', scrollListener);
+        el.removeEventListener('scroll', scrollListener);
       }
     }
 
@@ -294,8 +296,10 @@
     }
 
     function toggleSideMenu(e) {
-      scrollTopBegin = options.containerEl.scrollTop;
-      options.containerEl.addEventListener('scroll', scrollListener);
+      var el = options.containerEl;
+      scrollTopBegin = el.scrollTop || document.body.scrollTop;
+      el = el.tagName === 'BODY' ? window : el;
+      el.addEventListener('scroll', scrollListener);
       var selectedText = root.getSelection(),
           range,
           clientRectBounds,
