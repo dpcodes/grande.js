@@ -5,6 +5,7 @@
   var YOUTUBE_URL_REGEX = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/;
   var VINE_URL_REGEX = /^http(?:s?):\/\/(?:www\.)?vine\.co\/v\/([a-zA-Z0-9]{1,13})/;
   var GUID_ENABLED_TAGS = 'P BLOCKQUOTE LI H1 H2 H3 H4 H5 H6 FIGURE PRE'.split(' ');
+  var INLINE_ELEMENTS = 'B BR BIG I SMALL ABBR ACRONYM CITE EM STRONG A BDO SPAN SUB SUP #text'.split(' ');
 
   var Grande = Grande || function (bindableNodes, userOpts) {
 
@@ -121,7 +122,6 @@
      *
      */
     function getGuidEnabledNode(element) {
-      console.log(element.tagName);
        if (GUID_ENABLED_TAGS.indexOf(element.tagName) !== -1) {
         return element;
        }
@@ -134,7 +134,7 @@
       // Remove any <br> elements.
       var brs = el.getElementsByTagName('br');
       for (var i = 0; i < brs.length; i++) { brs[i].parentNode.removeChild(brs[i]); }
-      var p = document.createElement("span");
+      var p = document.createElement("p");
       p[getTextProp(p)] = text;
       p.className = "g-placeholder";
       el.appendChild(p);
@@ -225,12 +225,15 @@
           var sel = window.getSelection();
 
           // FF will return sel.anchorNode to be the parentNode when the triggered keyCode is 13
-          if (sel.anchorNode && sel.anchorNode.nodeName !== "ARTICLE") {
+          var nodeName = sel.anchorNode && sel.anchorNode.nodeName;
+          if (nodeName !== "ARTICLE") {
             triggerNodeAnalysis(event);
 
             if (sel.isCollapsed) {
               triggerTextParse(event);
             }
+          } else if (nodeName === "ARTICLE") {
+            triggerNodeAnalysis(event);
           }
         };
         node.onmousedown = triggerTextSelection;
@@ -566,8 +569,61 @@
       }
     }
 
+    function hasOnlyInlineChildNodes(elem) {
+      var children = elem.childNodes;
+      for (var i = 0; i < children.length ; i++) {
+        if (INLINE_ELEMENTS.indexOf(children[i].nodeName) === -1) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    function sanitizeInlineFormatting(elem) {
+      var elHtml = [];
+      var childChildren = elem.childNodes;
+      for (var j = 0; j < childChildren.length; j++) {
+        var currEl = childChildren[j];
+        var nodeName = currEl.nodeName.toLowerCase()
+        // Ignore brs.
+        if (nodeName === 'br') {
+          continue;
+        } else if (nodeName === '#text' || nodeName === 'span') {
+          elHtml.push(currEl[getTextProp(currEl)]);
+        } else {
+          var attrs = '';
+          if (nodeName === 'a') {
+            attrs = ' href="' + currEl.href + '"';
+          }
+          elHtml.push('<' + nodeName + attrs + '>' + currEl[getTextProp(currEl)] + '</' + nodeName + '>');
+        }
+      }
+      return elHtml.join('');
+    }
+
+    function createHtmlForElement(tag, attrs, optInner) {
+      var guidAttrs = '';
+      if (options.enableGuids &&
+          GUID_ENABLED_TAGS.indexOf(tag.toUpperCase()) !== -1) {
+        guidAttrs = ' class="guid-tagged" ' + options.guidAttribute + '="' + guid() + '" ';
+      }
+
+      return ['<', tag, guidAttrs, '>', optInner, '</', tag, '>'].join('');
+    }
+
+    /**
+     * Loop over children.
+     *   if has block elements
+     *   call the function again
+     *  else if it's just text, get text.
+     *  else if it is text with inline formatting
+     *    loop over children append text and recreate inline formatting (to remove attributes.)
+     *
+     * @param  {HTMLElement} elem Element containing all pasted dom.
+     * @return {Array.<string>} List of strings representing html to be put back.
+     */
     function getSanitizedLines(elem) {
-      var children = elem.children;
+      var children = elem.childNodes;
       var j = 0;
       if (!children || !children.length) {
         return [elem[getTextProp(elem)]];
@@ -575,48 +631,75 @@
       var lines = [];
       for (var i = 0; i < children.length; i++) {
         var el = children[i];
-        var tag = el.tagName && el.tagName.toLowerCase();
+        var tag = el.nodeName && el.nodeName.toLowerCase();
         switch (tag) {
           case undefined:
           case 'meta':
           case 'script':
           case 'style':
           case 'embed':
+          case 'br':
+          case 'hr':
             continue;
           case 'img':
-            lines.push(el.getAttribute('src'));
+            var img = '<img src="' + el.getAttribute('src') + '"/>';
+            lines.push(createHtmlForElement('figure', {}, img));
             break;
           case 'figure':
             // If the figure element has img elements.
             var imgs = el.getElementsByTagName('img');
             for (j = 0; j < imgs.length ; j++) {
-              lines.push(imgs[j].getAttribute('src'));
+              var img = '<img src="' + imgs[j].getAttribute('src') + '"/>';
+              lines.push(createHtmlForElement('figure', {}, img));
             }
+
+            // TODO(mkhatib): Only paste iFrames from whitelisted list.
             // If the figure element has iframes.
             var iframes = el.getElementsByTagName('iframe');
             for (j = 0; j < iframes.length ; j++) {
-              // Transfer embed links to a normal YouTube URL.
-              var path = iframes[j].getAttribute('src');
-              var parts = path.split('?')[0].split('/');
-              var youtubeId = parts[parts.length - 1];
-              lines.push('https://www.youtube.com/watch?v=' + youtubeId);
+              var iframe = '<iframe src="' + iframes[j].getAttribute('src') + '"></iframe>';
+              lines.push(createHtmlForElement('figure', {}, iframe));
             }
             break;
           case 'ul':
           case 'ol':
+            var listHtml = ['<' + tag + '>'];
             var lis = el.getElementsByTagName('li');
             for (j = 0; j < lis.length ; j++) {
-              lines.push(lis[j][getTextProp(lis[j])]);
+              listHtml.push(createHtmlForElement(
+                  'li', {}, lis[j][getTextProp(lis[j])]));
             }
+            listHtml.push('</' + tag + '>')
+            lines.push(listHtml.join(''));
             break;
+          case 'blockquote':
+            lines.push(createHtmlForElement(
+                'blockquote', {}, el[getTextProp(el)]));
+            break;
+          case 'h1':
+            lines.push(createHtmlForElement('h1', {}, el[getTextProp(el)]));
+            break;
+          case 'h2':
+          case 'h3':
+          case 'h4':
+          case 'h5':
+          case 'h6':
+            lines.push(createHtmlForElement('h2', {}, el[getTextProp(el)]));
+            break
+          case '#text':
+            lines.push(createHtmlForElement('p', {}, el[getTextProp(el)]));
+            break
           case 'pre':
-            var preLines = el[getTextProp(el)].split('\n');
-            for (j = 0; j < preLines.length ; j++) {
-              lines.push(preLines[j]);
-            }
+            lines.push(createHtmlForElement('pre', {}, el[getTextProp(el)]));
             break;
           default:
-            lines.push(el[getTextProp(el)]);
+            // To preserve inline styling.
+            if (hasOnlyInlineChildNodes(children[i])) {
+              var elHtml = sanitizeInlineFormatting(children[i]);
+              lines.push(createHtmlForElement('p', {}, elHtml));
+            } else {
+              Array.prototype.push.apply(lines, getSanitizedLines(children[i]));
+            }
         }
       }
       return lines;
@@ -629,8 +712,8 @@
 
       if (!savedSel.noText) {
         restoreSelection(elem, savedSel);
-        if (pastedData.indexOf('\n') == -1) {
-          document.execCommand("insertText", false, pastedData);
+        if (pastedData.trim().indexOf('\n') == -1) {
+          document.execCommand("insertText", false, pastedData.trim());
           return;
         }
       } else {
@@ -644,21 +727,7 @@
         }
       }
 
-      for(var i = 0; i < lines.length ; i++) {
-        if (lines[i].trim() === '') {
-          continue;
-        }
-        document.execCommand("insertText", false, lines[i].trim());
-        var insertedNode = triggerTextParse({});
-        if (!insertedNode || ['FIGURE', 'BLOCKQUOTE', 'UL', 'OL'].indexOf(insertedNode.tagName) === -1) {
-          document.execCommand("insertParagraph", false, '');
-
-          if (isFirefox) {
-            document.execCommand("insertHtml", false, '<p><br/></p>');
-          }
-          toggleFormatBlock('p');
-        }
-      }
+      document.execCommand("insertHTML", false, lines.join(''));
     }
 
     function preprocessKeyDown(event) {
@@ -719,6 +788,13 @@
       var sel = window.getSelection(),
           anchorNode,
           parentParagraph;
+
+      // If backspace is hit, re-add a paragragraph if there's no elements.
+      if (event.keyCode === 8) {
+        if (!editNode.childNodes || !editNode.childNodes.length) {
+          toggleFormatBlock("p");
+        }
+      }
 
       if (event.keyCode === 13) {
 
@@ -1177,6 +1253,7 @@
         }
         el.removeChild(p[i]);
         wasPlaceholder = true;
+        toggleFormatBlock("p");
       }
 
       if (wasPlaceholder) {
