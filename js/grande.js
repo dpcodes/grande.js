@@ -15,7 +15,7 @@
         editNode = bindableNodes[0], // TODO: cross el support for imageUpload
         isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1,
         options = {
-          containerEl: document.body,
+          containerSelector: 'body',
           animate: true,
           placeholder: null,
           mode: "rich", // inline, rich, partial
@@ -272,6 +272,10 @@
           // Upload progress event.
           function (progress) {
             progressIndicatorEl.style.width = progress + "%";
+          },
+          // Upload Error event.
+          function () {
+            editNode.removeChild(figureEl);
           });
 
         imageInput.innerHTML = imageInput.innerHTML;
@@ -280,7 +284,8 @@
     }
 
     function scrollListener(e) {
-      var el = options.containerEl.documentElement || options.containerEl;
+      var containerEl = document.querySelector(options.containerSelector);
+      var el = containerEl.documentElement || containerEl;
       var scrollTop = el.scrollTop || document.body.scrollTop;
       if (Math.abs(scrollTop - scrollTopBegin) > 40) {
         imageTooltip.style.top = EDGE + 'px';
@@ -299,7 +304,7 @@
     }
 
     function toggleSideMenu(e) {
-      var el = options.containerEl;
+      var el = document.querySelector(options.containerSelector);
       scrollTopBegin = el.scrollTop || document.body.scrollTop;
       el = el.tagName === 'BODY' ? window : el;
       el.addEventListener('scroll', scrollListener);
@@ -468,11 +473,12 @@
         }
       }
 
+      var containerEl = document.querySelector(options.containerSelector);
       return {
           start: start,
           end: end,
           noText: noText,
-          scroll: options.containerEl.scrollTop
+          scroll: containerEl.scrollTop
       };
     }
 
@@ -507,7 +513,8 @@
               var sel = window.getSelection();
               sel.removeAllRanges();
               sel.addRange(range);
-              options.containerEl.scrollTop = savedSel.scroll;
+              var containerEl = document.querySelector(options.containerSelector);
+              containerEl.scrollTop = savedSel.scroll;
           } else {
               throw ex;
           }
@@ -717,7 +724,8 @@
           return;
         }
       } else {
-        options.containerEl.scrollTop = savedSel.scroll;
+        var containerEl = document.querySelector(options.containerSelector);
+        containerEl.scrollTop = savedSel.scroll;
         if (isFirefox) {
           restoreSelection(elem, savedSel);
           var cEl = getCurrentElementAtCursor();
